@@ -2,19 +2,190 @@
 
 
 ## Loading and preprocessing the data
+First, the activity data has to be downloaded and saved.  Then we load the data onto R.  Then we process the data into a format that is most suitable.  For example, the date information should be classified as date, and not as numerics or characters. Here is how we load and process the data:
+
+```{r, echo=TRUE}
+data <- read.csv("~/activity.csv", header = TRUE, stringsAsFactors = FALSE)
+data$date <- as.Date(data$date, "%Y-%m-%d")
+head(data)  #checking out the top of the data
+str(data)   #checking out the structure of the data and the columns are correctly defined
+```
 
 
 
 ## What is mean total number of steps taken per day?
+We will ignore the missing values in the dataset for now, and make a histogram of the total number of steps taken each day.  Before we can make the histogram graph, we must use aggregate function to sum the steps by day.
+
+```{r, echo=TRUE}
+sumStepsPerDay <- aggregate(data$steps, by = list(data$date), FUN = sum, na.rm = TRUE ) 
+head(sumStepsPerDay)
+# Note that the column names are not obvious, so we update them
+names(sumStepsPerDay)[1] <- "Date"   
+names(sumStepsPerDay)[2] <- "Total.Steps"
+```
+
+With the sums that we've calculated, we can use it to create the histogram.
+We use ggplot plotting systems.
+```{r, echo=TRUE}
+library(ggplot2)
+ggplot(sumStepsPerDay, aes(x=Date, y=Total.Steps)) + 
+  geom_bar(stat="identity", fill="white", colour="black")
+```
+
+Here we calculate and report the mean and median total number of steps taken per day, by using the aggregate function again.
+```{r, echo=TRUE}
+meanStepsPerDay <- aggregate(data$steps, by = list(data$date), FUN = mean, na.rm = TRUE )
+names(meanStepsPerDay)[1] <- "Date"
+names(meanStepsPerDay)[2] <- "Mean.Steps"
+head(meanStepsPerDay)
+
+medianStepsPerDay <- aggregate(data$steps, by = list(data$date), FUN = median, na.rm = TRUE ) 
+names(medianStepsPerDay)[1] <- "Date"
+names(medianStepsPerDay)[2] <- "Median.Steps"
+head(medianStepsPerDay)
+```
+Note that the median is all zeros for all dates.  Unless there were missing values, then the reported median is NA.
 
 
 
 ## What is the average daily activity pattern?
+We can find this out by, again, using the aggregate function.  This time, be sure to find the mean by interval, and not date.
+```{r, echo=TRUE}
+meanStepsPerInterval <- aggregate(data$steps, by = list(data$interval), FUN = mean, na.rm = TRUE ) 
+names(meanStepsPerInterval)[1] <- "Interval.Num"
+names(meanStepsPerInterval)[2] <- "Mean"
+```
+With the information that we've just calculated, we can make a time series plot.
+```{r, echo=TRUE, fig.width=8}
+ggplot(meanStepsPerInterval, aes(x=Interval.Num, y=Mean))+ 
+  geom_line()
+```
+So we see for each 5 min interval, what is the average number of steps taken, averaged across all days. The line peak at around 700-800 interval number.
+
+If we want to know exactly which 5 min interval, on average contains the maximum number of steps, then execute the following:
+```{r, echo=TRUE}
+meanStepsPerInterval[which.max(meanStepsPerInterval[,2]),]
+```
+We see that at interval number 835, the highest average number of steps is 206 steps per that 5 minute interval.
+
 
 
 
 ## Imputing missing values
+Total number of rows with NAs:
+```{r, echo=TRUE}
+sum(is.na(data))
+```
+
+Our strategy for filling in all the missing value is to use the mean for that 5-min interval.
+We create a new dataset that is equal to the original dataset, but with the missing data filled in.
+The new dataset is called, dataFilledin.
+```{r, echo=TRUE}
+dataFilledIn <- data
+
+for(i in seq(0, 2355, by = 5)){
+#use the mean for that 5-minute interval to fill in the NAs
+dataFilledIn[(dataFilledIn$interval==i),][,1][is.na(dataFilledIn[(dataFilledIn$interval==i),][,1])] <- unlist(
+  (meanStepsPerInterval[(meanStepsPerInterval$Interval.Num==i),][1, 2])
+  )
+}
+
+head(data)
+
+head(meanStepsPerInterval)
+
+head(dataFilledIn)   #We want to check that the NAs are filled in correctly
+```
+
+We make a histogram of the total number of steps taken each day with the dataFilledIn set.
+
+```{r, echo=TRUE, fig.width=8}
+sumStepsPerDay_dataFilledIn <- aggregate(dataFilledIn$steps, by = list(dataFilledIn$date), FUN = sum, na.rm = TRUE )  
+#We use aggregate and rename the columns again like we did on the original dataset
+names(sumStepsPerDay_dataFilledIn)[1] <- "Date"
+names(sumStepsPerDay_dataFilledIn)[2] <- "Total.Steps"
+
+ggplot(sumStepsPerDay_dataFilledIn, aes(x=Date, y=Total.Steps)) + 
+  geom_bar(stat="identity", fill="white", colour="black")
+```
+
+We calculate and report the mean and median using the dataFilledIn set.
+```{r, echo=TRUE}
+meanStepsPerDay_dataFilledIn <- aggregate(dataFilledIn$steps, by = list(dataFilledIn$date), FUN = mean, na.rm = TRUE )
+names(meanStepsPerDay_dataFilledIn)[1] <- "Date"
+names(meanStepsPerDay_dataFilledIn)[2] <- "Mean.Steps"
+head(meanStepsPerDay_dataFilledIn)
+
+medianStepsPerDay_dataFilledIn <- aggregate(dataFilledIn$steps, by = list(dataFilledIn$date), FUN = median, na.rm = TRUE ) 
+names(medianStepsPerDay_dataFilledIn)[1] <- "Date"
+names(medianStepsPerDay_dataFilledIn)[2] <- "Median.Steps"
+head(medianStepsPerDay_dataFilledIn)
+```
+Do these values differ from the estimates from the first part of the assignment ? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+The total daily number of steps changed in that there are more bars, instead of empty spaces.  However, the peak around Nov 20 is still there.  Note the differences and similarities between the 2 histograms.
+
+To look at the differences in mean and median, let's merge the data frames and compare!
+```{r, echo=TRUE}
+compareMean <- merge(meanStepsPerDay, meanStepsPerDay_dataFilledIn, by= "Date")
+compareMean
+compareMedian <- merge(medianStepsPerDay, medianStepsPerDay_dataFilledIn , by="Date")
+compareMedian
+```
+So by imputing missing data, we didn't change the mean of each date except for the ones that have NaNs.  We also didn't change the median except for the ones that have NAs.
 
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+First, we have to create a new factor variable in the dataset with 2 levels, "weekday" and "weekend".  The factor variable, weekdayOrWeekend, will indicate whether a given date is a weekday or weekend day.
+
+```{r, echo=TRUE}
+dataFilledIn$day <- (weekdays(dataFilledIn$date))
+str(dataFilledIn)  #check that day is a character
+dataFilledIn$weekdayOrWeekend <- ifelse(dataFilledIn$day == "Sunday" | dataFilledIn$day == "Saturday", "weekend", "weekday")
+head(dataFilledIn)
+```
+
+Use this line of code to spot check that the days of the week are labeled correctly.
+```{r, echo=TRUE, results='hide'}
+dataFilledIn[dataFilledIn$day == "Sunday",]
+```
+
+Make sure that the variable, weekdayOrWeekend, is a factor with 2 levels.
+```{r, echo=TRUE}
+dataFilledIn$weekdayOrWeekend <- as.factor(dataFilledIn$weekdayOrWeekend)
+str(dataFilledIn)
+```
+
+With the additional information on the type of the day the date is, we can make a time series plot separated by weekday versus weekend.
+```{r, echo=TRUE}
+#Divide the dataset to 2 different ones, weekday vs. weekend
+dataFilledInWeekday <- dataFilledIn[dataFilledIn$weekdayOrWeekend == "weekday",]
+
+dataFilledInWeekend <- dataFilledIn[dataFilledIn$weekdayOrWeekend == "weekend",]
+```
+
+```{r, echo=TRUE, fig.width=8}
+#table 1: weekday with mean per interval
+weekDAY_meanPerInterval <- aggregate(dataFilledInWeekday$steps, by = list(dataFilledInWeekday$interval), FUN = mean, na.rm = TRUE ) 
+names(weekDAY_meanPerInterval)[1] <- "Interval.Num"
+names(weekDAY_meanPerInterval)[2] <- "Mean"
+weekDAY_meanPerInterval$weekendOrWeekday <- "weekday"
+head(weekDAY_meanPerInterval)
+
+#table 2: weekend with mean per interval
+weekEND_meanPerInterval <- aggregate(dataFilledInWeekend$steps, by = list(dataFilledInWeekend$interval), FUN = mean, na.rm = TRUE ) 
+names(weekEND_meanPerInterval)[1] <- "Interval.Num"
+names(weekEND_meanPerInterval)[2] <- "Mean"
+weekEND_meanPerInterval$weekendOrWeekday <- "weekend"
+head(weekEND_meanPerInterval)
+
+#use rbind to combine the 2 tables
+dataFilledIn_meanPerInterval <- rbind(weekDAY_meanPerInterval, weekEND_meanPerInterval)
+
+ggplot(dataFilledIn_meanPerInterval, aes(x=Interval.Num, y=Mean))+ 
+  geom_line()+
+  facet_grid(weekendOrWeekday ~ .)
+```
+
+The graphs show that there are differences in average activity patterns between weekdays and weekends!
